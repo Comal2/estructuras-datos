@@ -1,5 +1,5 @@
-#ifndef LISTA_SIMPLE_H
-#define LISTA_SIMPLE_H
+#ifndef LISTA_CIRCULAR_H
+#define LISTA_CIRCULAR_H
 
 typedef struct node {
     short dato;
@@ -12,6 +12,7 @@ typedef struct {
 
 nodo crearNodo(short valor);
 lista crearLista();
+nodo ultimo(lista listaActual);
 void push(short valor, lista listaActual);
 short pop(lista listaActual);
 void enqueue(short valor, lista listaActual);

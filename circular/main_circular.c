@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "lista_simple.h"     // << LA UNICA LINEA QUE CAMBIA
+#include "lista_circular.h"     // << LA UNICA LINEA QUE CAMBIA
                               //    ("lista_doble.h" / "lista_circular.h")
 int main()
 {
