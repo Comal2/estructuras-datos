@@ -85,7 +85,7 @@ int size(lista listaActual){
 }
 
 int isEmpty(lista listaActual){
-    return listaActual->top == NULL;
+    return listaActual->top == NULL; // devuelve 1 si es vacia, 0 si no lo es
 }
 
 void imprimir(lista listaActual){
