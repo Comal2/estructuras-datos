@@ -1,20 +1,101 @@
 # C desde lógica de programación
-> Ya sabés programar. Este doc es el *traductor* — de conceptos que conocés a cómo C los expresa.
+
+> Referencia práctica para quienes conocen lógica de programación pero no C. Se asumen como conocidos los conceptos de variables, bucles, funciones y estructuras de datos. El enfoque está en la sintaxis, el modelo de memoria y los patrones propios del lenguaje.
 
 ---
 
-## 1. El cambio mental: Python → C
+## 0. El compilador y el entorno de trabajo
 
-| En Python | En C |
+A diferencia de los lenguajes interpretados, C requiere una etapa de **compilación** antes de ejecutar. El compilador lee el código fuente (`.c`) y genera un ejecutable binario. Si hay errores de sintaxis, el proceso se detiene y los reporta — no existe "correr y ver qué pasa".
+
+El compilador más extendido es **GCC** (GNU Compiler Collection). En Linux suele venir preinstalado. En Windows se instala a través de **MSYS2**.
+
+### Instalación en Windows (MSYS2 + MinGW UCRT64)
+
+1. Descargar e instalar MSYS2 desde [https://www.msys2.org](https://www.msys2.org)
+2. Abrir la terminal **MSYS2 UCRT64** (no la genérica MSYS2)
+3. Instalar el toolchain completo:
+
+```bash
+pacman -S --needed base-devel mingw-w64-ucrt-x86_64-toolchain
+```
+
+4. Agregar al **PATH** de Windows la carpeta `bin` de la instalación. La ruta típica es:
+
+```
+C:\msys64\ucrt64\bin
+```
+
+Para verificar que quedó bien, abrir PowerShell y ejecutar `gcc --version`. Si imprime la versión, el PATH está correcto.
+
+### Compilación desde terminal
+
+```bash
+# Compilar un archivo simple:
+gcc archivo.c -o programa.exe
+
+# Si el archivo usa <math.h> (pow, sqrt, etc.), agregar -lm al final:
+gcc archivo.c -lm -o programa.exe
+
+# Compilar varios .c juntos (necesario cuando se usan las librerías del proyecto):
+gcc main.c lista_simple.c -o programa.exe
+
+# Ejecutar:
+.\programa.exe       # PowerShell / Windows
+./programa           # bash / Linux / Git Bash
+```
+
+### Flags de GCC más usados
+
+| Flag | Efecto |
 |---|---|
-| `x = 5` | `int x = 5;` — declarás el tipo siempre |
-| Sin punto y coma | Todo termina en `;` |
-| El intérprete corre el código | Primero compilás: `gcc archivo.c -o programa` |
-| La memoria se maneja sola | Vos pedís y liberás memoria |
-| `list`, `dict` vienen incluidos | Las estructuras de datos las hacés vos |
-| Los errores se ven al correr | Muchos errores se ven al compilar |
+| `-o nombre` | Nombre del ejecutable de salida |
+| `-lm` | Vincular la librería matemática (`<math.h>`) |
+| `-Wall` | Mostrar todos los warnings (recomendado siempre) |
+| `-g` | Incluir información para depurador |
 
-El compilador es tu primer filtro: si no compila, ni corres. Si compila y crashea, ahí empieza el trabajo real.
+### Configuración en VS Code con Code Runner
+
+Con la extensión **Code Runner**, se puede compilar y ejecutar directamente desde el editor con `Ctrl+Alt+N`. La configuración relevante en `settings.json`:
+
+```json
+"code-runner.runInTerminal": true,
+"code-runner.saveFileBeforeRun": true,
+"code-runner.clearPreviousOutput": true,
+
+"code-runner.executorMap": {
+    "c": "cd $dir; gcc *.c -o $fileNameWithoutExt.exe; if ($?) { .\\$fileNameWithoutExt.exe; Remove-Item $fileNameWithoutExt.exe }"
+}
+```
+
+Qué hace el comando paso a paso:
+
+| Fragmento | Qué hace |
+|---|---|
+| `cd $dir` | Ir al directorio del archivo abierto |
+| `gcc *.c` | Compilar **todos** los `.c` en esa carpeta (necesario para las librerías) |
+| `-o $fileNameWithoutExt.exe` | Nombre del ejecutable igual al archivo fuente |
+| `if ($?)` | Solo ejecutar si la compilación fue exitosa (PowerShell) |
+| `Remove-Item $fileNameWithoutExt.exe` | Borrar el ejecutable después de correr |
+
+> El `gcc *.c` es importante: cuando se trabaja con las librerías (`lista_simple.c` + `main_simple.c`), compilar solo el `main` da errores de "símbolo no definido". Al compilar todos los `.c` de la carpeta, GCC los enlaza automáticamente.
+
+> Para archivos que usen `<math.h>`, agregar `-lm` antes del punto y coma: `gcc *.c -lm -o ...`
+
+---
+
+## 1. De lenguajes de alto nivel a C
+
+| Lenguajes de alto nivel | C |
+|---|---|
+| `x = 5` | `int x = 5;` — el tipo se declara siempre |
+| Sin punto y coma | Toda sentencia termina en `;` |
+| El intérprete ejecuta el código | Primero se compila; el binario resultante se ejecuta |
+| La memoria se gestiona automáticamente | El programador la reserva y la libera |
+| Estructuras de datos incluidas (`list`, `dict`...) | Las estructuras se implementan desde cero |
+| Los errores aparecen al correr | Muchos errores se detectan al compilar |
+
+El compilador actúa como primer filtro: un programa que no compila no puede ejecutarse. Un programa que compila correctamente puede aun tener errores lógicos, que se detectan al probar.
 
 ---
 
@@ -22,70 +103,70 @@ El compilador es tu primer filtro: si no compila, ni corres. Si compila y crashe
 
 ```c
 int    x = 10;       // entero, 4 bytes
-short  s = 10;       // entero corto, 2 bytes  ← lo usamos en todas las listas
-float  f = 3.14;     // decimal simple
-double d = 3.14159;  // decimal doble precisión
-char   c = 'A';      // un carácter, 1 byte (también es un número: 'A' == 65)
+short  s = 10;       // entero corto, 2 bytes  ← usado en las listas del proyecto
+float  f = 3.14;     // decimal de precisión simple
+double d = 3.14159;  // decimal de doble precisión
+char   c = 'A';      // un carácter, 1 byte (internamente es un número: 'A' == 65)
 ```
 
-> Un `char` es a la vez un carácter y un número (ASCII). `'A'` vale `65`, `'a'` vale `97`, `'0'` vale `48`. Esto se explota en los ejercicios de frecuencia de caracteres.
+> Un `char` es simultáneamente un carácter y un entero según el estándar ASCII. `'A'` vale `65`, `'a'` vale `97`, `'0'` vale `48`. Esta propiedad se explota en los ejercicios de frecuencia de caracteres.
 
-### printf y scanf
+### Entrada y salida básica
 
 ```c
 int n;
-printf("Dame un número: ");
-scanf("%d", &n);       // & es OBLIGATORIO — le decís DÓNDE guardar el valor
-printf("Recibí: %d\n", n);
+printf("Ingrese un número: ");
+scanf("%d", &n);       // & indica la dirección donde se almacenará el valor
+printf("Recibido: %d\n", n);
 ```
 
-| Tipo | Format specifier |
+| Tipo | Especificador de formato |
 |---|---|
 | `int` / `short` | `%d` |
 | `float` | `%f` |
 | `double` | `%g` o `%lf` |
 | `char` | `%c` |
-| `char[]` (string) | `%s` |
+| `char[]` (cadena) | `%s` |
 | `float` con 2 decimales | `%.2f` |
 
 ---
 
 ## 3. Arrays estáticos
 
-En Python las listas crecen solas. En C, el tamaño es fijo desde el principio:
+El tamaño de un array se define en tiempo de compilación y no puede cambiar en ejecución.
 
 ```c
-int numeros[30];           // 30 enteros, índice 0..29
+int numeros[30];           // 30 enteros, índices 0..29
 float valores[10];         // 10 flotantes
-int frecuencia[6] = {0};   // inicializado todo en 0 — truco útil
+int frecuencia[6] = {0};   // inicializado completamente en cero
 ```
 
 ---
 
 ### 📌 Ej1.c — Frecuencia de números del 1 al 5
 
-**Enunciado supuesto:** leer 30 números del 1 al 5 y mostrar cuántas veces aparece cada uno.
+**Enunciado:** leer 30 números del 1 al 5 y mostrar cuántas veces aparece cada uno.
 
-La idea clave: usar el **valor como índice**.
+Técnica: **valor como índice**. Si el número leído es `3`, se incrementa `frecuencia[3]`. El valor determina la posición.
 
 ```c
-int frecuencia[6] = {0};    // posiciones 0..5, usamos solo 1..5
+int frecuencia[6] = {0};    // posiciones 0..5; se usan solo 1..5
 
 for (i = 0; i < 30; i++) {
     scanf("%d", &numeros[i]);
-    frecuencia[numeros[i]]++;  // si el número es 3 → frecuencia[3]++
+    frecuencia[numeros[i]]++;  // el valor leído indexa el array
 }
 ```
 
-En Python habrías hecho `freq.get(n, 0) + 1` con un dict. Acá no necesitás dict si sabés exactamente qué valores pueden entrar — el valor mismo dice en qué casilla contar.
+En Python se resolvería con un diccionario (`freq[n] = freq.get(n, 0) + 1`). En C, cuando el rango de valores es conocido y acotado, un array indexado por valor es más directo y eficiente.
 
 ---
 
 ### 📌 Ej2.c — Números con una sola ocurrencia
 
-**Enunciado supuesto:** de 20 números, mostrar solo los que aparecen exactamente una vez.
+**Enunciado:** de 20 números ingresados, mostrar solo los que aparecen exactamente una vez.
 
-Doble `for`: por cada número `i`, recorrer todo el array con `j` contando cuántas veces aparece.
+Para cada elemento `i`, se recorre todo el array con `j` contando coincidencias:
 
 ```c
 for (i = 0; i < 20; i++) {
@@ -97,46 +178,46 @@ for (i = 0; i < 20; i++) {
 }
 ```
 
-Sin sets, sin `.count()`. Comparación directa. Es O(n²) pero es la forma más directa de pensarlo.
+La solución es O(n²). En Python se usaría `lista.count(x) == 1`. En C, sin estructuras auxiliares, la comparación directa con doble bucle es la aproximación más simple.
 
 ---
 
 ### 📌 Ej3.c — Segundo menor y segundo mayor
 
-**Enunciado supuesto:** de 10 flotantes, encontrar el segundo menor y el segundo mayor.
+**Enunciado:** de 10 flotantes, encontrar el segundo menor y el segundo mayor.
 
-Ordenamos con **Selection Sort** y después solo accedemos a los índices:
+Se ordena el array con **Selection Sort** y se accede por índice:
 
 ```c
 for (i = 0; i < 9; i++) {
     for (j = i + 1; j < 10; j++) {
         if (numeros[i] > numeros[j]) {
-            temporal = numeros[i];    // intercambio con variable temporal
-            numeros[i] = numeros[j];  // no podés hacer a,b = b,a en C
+            temporal = numeros[i];    // intercambio requiere variable auxiliar
+            numeros[i] = numeros[j];  // C no tiene asignación simultánea
             numeros[j] = temporal;
         }
     }
 }
-// Resultado: numeros[0]=menor ... numeros[9]=mayor
+// Tras ordenar: numeros[0] = mínimo, numeros[9] = máximo
 printf("Segundo menor: %.2f\n", numeros[1]);
 printf("Segundo mayor: %.2f\n", numeros[8]);
 ```
 
-En Python habrías hecho `sorted(lista)[1]`. Acá el sort lo hacés vos. La variable `temporal` es obligatoria — C no tiene asignación simultánea.
+La variable `temporal` es obligatoria: sin ella, la primera asignación sobreescribiría el valor antes de que pueda moverse.
 
 ---
 
-## 4. Strings (arreglos de `char`)
+## 4. Cadenas de caracteres
 
-En C no hay tipo `string`. Un string es un array de `char` que **termina con el carácter `'\0'`** (valor 0, el terminador nulo). Sin él, las funciones no saben dónde termina la cadena.
+C no tiene un tipo `string`. Una cadena es un array de `char` que **termina con el carácter nulo `'\0'`** (valor entero 0). Sin ese terminador, las funciones de cadena no saben dónde acaba el texto.
 
 ```c
-char cadena[100];       // hasta 99 caracteres útiles + '\0' al final
-scanf("%s", cadena);    // lee hasta espacio, agrega '\0' automático
-                        // nota: sin & porque el array ya es un puntero (ver §5)
+char cadena[100];       // hasta 99 caracteres útiles + '\0'
+scanf("%s", cadena);    // lee hasta el primer espacio y agrega '\0' automáticamente
+                        // no lleva & porque el nombre del array ya es un puntero
 ```
 
-Recorrer un string = recorrer hasta encontrar `'\0'`:
+Recorrer una cadena equivale a avanzar hasta encontrar `'\0'`:
 
 ```c
 for (i = 0; cadena[i] != '\0'; i++) {
@@ -144,20 +225,20 @@ for (i = 0; cadena[i] != '\0'; i++) {
 }
 ```
 
-Funciones útiles (requieren `#include <string.h>`):
+Funciones de la librería estándar (`#include <string.h>`):
 
 ```c
 strlen(s)           // longitud sin contar '\0'
-strcpy(dest, src)   // copiar string
-strcmp(s1, s2)      // 0 si son iguales, !=0 si no
-strtok(s, " \n")    // dividir por separador, devuelve token por token
+strcpy(dest, src)   // copiar cadena
+strcmp(s1, s2)      // 0 si son iguales, valor distinto si no
+strtok(s, " \n")    // tokenizar por separador — empleado en Ejercio_10_09_2026.c
 ```
 
 ---
 
 ### 📌 Ej.c — Validar paréntesis balanceados
 
-**Enunciado supuesto:** dada una cadena con `(`, `)`, `{`, `}`, `[`, `]`, decir si está bien balanceada.
+**Enunciado:** dada una cadena con `(`, `)`, `{`, `}`, `[`, `]`, determinar si está bien balanceada.
 
 ```c
 for (i = 0; cadena[i] != '\0'; i++) {
@@ -165,30 +246,30 @@ for (i = 0; cadena[i] != '\0'; i++) {
         balance++;
     } else if (cadena[i] == ')' || cadena[i] == '}' || cadena[i] == ']') {
         balance--;
-        if (balance < 0) break;  // cerró algo que nunca se abrió
+        if (balance < 0) break;  // se cerró algo que no estaba abierto
     }
 }
 if (balance == 0) printf("SI\n");
-else printf("NO\n");
+else              printf("NO\n");
 ```
 
-> ⚠️ Este enfoque con contador no detecta `([)]` como inválido (cada tipo abre/cierra sin importar el orden entre tipos). Para validación exacta se necesita una pila real — ¿recordás `push`/`pop` de las listas? Ahí está la solución completa.
+> ⚠️ Este enfoque con contador simple no distingue tipos: `([)]` pasaría como válido. Para validación exacta por tipo se necesita una pila real que recuerde qué abridor se usó — el mismo mecanismo de `push`/`pop` de las listas enlazadas del proyecto.
 
 ---
 
 ### 📌 Ej5.c — Prefijo común más largo
 
-**Enunciado supuesto:** dadas `n` palabras, encontrar el prefijo que todas comparten.
+**Enunciado:** dadas `n` palabras, encontrar el prefijo que todas comparten.
 
-Array 2D: primera dimensión = qué palabra, segunda = qué letra.
+Array bidimensional: primera dimensión = índice de palabra, segunda = posición de carácter.
 
 ```c
-char cadenas[10][21];   // 10 palabras de hasta 20 chars cada una
+char cadenas[10][21];   // 10 palabras de hasta 20 caracteres cada una
 
-// cadenas[i][j] = letra j-ésima de la palabra i-ésima
+// cadenas[i][j] = carácter j-ésimo de la palabra i-ésima
 ```
 
-Algoritmo: avanza letra por letra en la primera palabra. Para cada posición `j`, revisa que todas las demás palabras tengan la misma letra. En cuanto una difiere, para.
+Algoritmo: avanzar letra por letra sobre la primera palabra; para cada posición `j`, verificar que todas las demás tengan el mismo carácter. Al primer desacuerdo, detener.
 
 ```c
 for (j = 0; cadenas[0][j] != '\0'; j++) {
@@ -198,7 +279,7 @@ for (j = 0; cadenas[0][j] != '\0'; j++) {
     }
     if (!coinciden) break;
 }
-cadenas[0][j] = '\0';   // truncar la primera palabra hasta donde llegamos
+cadenas[0][j] = '\0';   // truncar en la posición donde se detuvo
 printf("%s\n", cadenas[0]);
 ```
 
@@ -206,17 +287,17 @@ printf("%s\n", cadenas[0]);
 
 ### 📌 Ej4.c — Top 3 caracteres más frecuentes
 
-**Enunciado supuesto:** de 10 caracteres ingresados, mostrar los 3 que más veces aparecen.
+**Enunciado:** de 10 caracteres ingresados, mostrar los 3 que más veces aparecen.
 
-¿Recordás el truco de "valor como índice" del `Ej1.c`? Acá vuelve pero con chars:
+La misma técnica de valor-como-índice del Ej1.c, extendida a los 256 valores ASCII posibles:
 
 ```c
-int frecuencias[256] = {0};          // 256 valores ASCII posibles
+int frecuencias[256] = {0};          // posición = valor ASCII del carácter
 
-frecuencias[(int)caracteres[i]]++;   // cast char→int = posición en el array
+frecuencias[(int)caracteres[i]]++;   // cast char → int da el índice ASCII
 ```
 
-Para el top 3: repetir 3 veces → buscar el máximo → imprimirlo → **poner ese índice en 0** → buscar el siguiente máximo.
+Para obtener el top 3: encontrar el máximo, registrarlo, poner esa posición en `0` para excluirla, y repetir:
 
 ```c
 for (i = 0; i < 3; i++) {
@@ -225,44 +306,26 @@ for (i = 0; i < 3; i++) {
         if (frecuencias[j] > max_frec) { max_frec = frecuencias[j]; indice_max = j; }
     }
     printf("'%c' apareció %d veces\n", indice_max, max_frec);
-    frecuencias[indice_max] = 0;  // anular para no volver a elegirlo
+    frecuencias[indice_max] = 0;  // excluir en la siguiente búsqueda
 }
 ```
 
 ---
 
-### 📌 Ej2.py — Frecuencia de caracteres (recorrido único)
+## 5. Punteros
 
-**Enunciado:** dada una cadena, mostrar la frecuencia de cada carácter en orden de aparición. Solo un recorrido.
-
-```python
-for letra in cadena:
-    if letra in letras:
-        i = letras.index(letra)
-        veces[i] += 1
-    else:
-        letras.append(letra)   # nueva letra
-        veces.append(1)
-```
-
-Dos listas paralelas (`letras` y `veces`) en vez de un dict. El índice `i` conecta ambas. Es el mismo concepto que el array de frecuencias de C pero en Python idiomático.
-
----
-
-## 5. Punteros ⚡
-
-Este es **el** tema de C. Un puntero es una variable que guarda una **dirección de memoria**, no un valor.
+Un puntero es una variable que almacena una **dirección de memoria**, no un valor directo.
 
 ```c
 int x = 5;
-int *p = &x;    // p guarda la dirección donde vive x
-                // &  = "dame la dirección de"
-                // *p = "dame el valor en esa dirección"
+int *p = &x;    // p contiene la dirección donde está almacenado x
+                // &  = operador "dirección de"
+                // *p = "valor en la dirección p" (desreferencia)
 
 printf("%d\n", x);    // 5
-printf("%d\n", *p);   // 5 — mismo valor, camino diferente
+printf("%d\n", *p);   // 5 — mismo resultado, acceso indirecto
 
-*p = 10;              // modifico x a través de p
+*p = 10;              // modifica x a través del puntero
 printf("%d\n", x);    // 10
 ```
 
@@ -270,29 +333,29 @@ printf("%d\n", x);    // 10
 Memoria:
   dirección 0x1A4  →  [ 5 ]   ← x
                           ↑
-  p = 0x1A4 ──────────────┘   ← p (guarda la dirección, no el 5)
+  p = 0x1A4 ──────────────┘   ← p (almacena la dirección, no el 5)
 ```
 
-**¿Por qué importa?** Tres casos que aparecen en los ejercicios:
+Los punteros aparecen en tres contextos recurrentes en los ejercicios:
 
-1. `scanf("%d", &n)` — sin `&`, scanf no puede modificar `n` (solo recibiría una copia)
-2. `scanf("%s", cadena)` — sin `&` porque `cadena` ya **es** un puntero al primer elemento del array
-3. Las listas enlazadas son punteros que apuntan a structs que contienen punteros a otros structs
+1. `scanf("%d", &n)` — sin `&`, `scanf` recibiría una copia del valor y no podría modificarlo
+2. `scanf("%s", cadena)` — sin `&` porque el nombre de un array ya es la dirección de su primer elemento
+3. Las listas enlazadas son estructuras donde cada nodo contiene un puntero al siguiente nodo
 
 ---
 
 ## 6. Structs y typedef
 
-Un `struct` agrupa variables bajo un nombre. Es como una clase sin métodos.
+Un `struct` agrupa variables heterogéneas bajo un mismo nombre. No tiene métodos — es solo un contenedor de datos.
 
 ```c
 struct Nodo {
     float dato;
-    struct Nodo *siguiente;   // puntero al mismo tipo — así se encadenan
+    struct Nodo *siguiente;   // puntero al mismo tipo: la base del encadenamiento
 };
 ```
 
-`typedef` le da alias al tipo para no escribir `struct` en cada declaración:
+`typedef` define alias para evitar escribir `struct` en cada declaración:
 
 ```c
 typedef struct node {
@@ -300,44 +363,44 @@ typedef struct node {
     struct node *nxt;
 } tipoNodo, *nodo;
 //  ^^^^^^^^  ^^^^
-//  alias al struct   alias al PUNTERO al struct
+//  alias para el struct   alias para el puntero al struct
 
 // Sin typedef:   struct node *p = malloc(...);
-// Con typedef:   nodo p = malloc(...);   ← mucho más limpio
+// Con typedef:   nodo p = malloc(...);
 ```
 
-Este patrón exacto está en los tres archivos `.h` de las listas.
+Este patrón aparece de forma idéntica en los tres archivos `.h` de las librerías del proyecto.
 
 ---
 
 ## 7. Memoria dinámica: `malloc` y `free`
 
-Cuando creás `int x`, el compilador reserva espacio fijo en el **stack** (se libera solo). Cuando usás `malloc`, pedís espacio en el **heap** que persiste hasta que vos lo liberés con `free`.
+Las variables declaradas normalmente (`int x`) se alojan en el **stack** y se liberan automáticamente al salir del bloque. Con `malloc`, la memoria se reserva en el **heap** y persiste hasta que se libera explícitamente con `free`.
 
 ```c
 #include <stdlib.h>
 
 nodo nuevo = (nodo) malloc(sizeof(tipoNodo));
 //            ^^^^          ^^^^^^^^^^^^^^
-//           cast al tipo   bytes que necesita un tipoNodo
+//           cast al tipo   bytes que ocupa un tipoNodo
 
-if (nuevo == NULL) {       // malloc devuelve NULL si no hay memoria
+if (nuevo == NULL) {       // malloc devuelve NULL si no hay memoria disponible
     printf("Error: sin memoria\n");
     exit(1);
 }
 
-// ... usar nuevo ...
+// ... uso de nuevo ...
 
-free(nuevo);    // devolver la memoria al sistema
+free(nuevo);    // devolver la memoria al sistema operativo
 ```
 
-> Si hacés `malloc` sin `free` → **fuga de memoria**. El programa pierde esa memoria hasta que termina. En `pop` de las listas, siempre hay un `free(tope)` exactamente por esto.
+> Cada `malloc` sin su correspondiente `free` constituye una **fuga de memoria**: el programa retiene esa memoria hasta terminar. En la implementación de `pop` de las listas, el `free(tope)` existe precisamente por esta razón.
 
 ---
 
-## 8. Listas enlazadas — todo junto
+## 8. Listas enlazadas
 
-Una lista enlazada es una cadena de nodos en memoria dinámica. Cada nodo sabe dónde está el siguiente.
+Una lista enlazada es una secuencia de nodos en memoria dinámica donde cada nodo conoce la dirección del siguiente.
 
 ```
 [ dato | nxt ] → [ dato | nxt ] → [ dato | nxt ] → NULL
@@ -345,26 +408,26 @@ Una lista enlazada es una cadena de nodos en memoria dinámica. Cada nodo sabe d
      top
 ```
 
-Las tres variantes que implementamos en el proyecto:
+Las tres variantes implementadas en el proyecto:
 
 | | Simple | Doble | Circular |
 |---|---|---|---|
 | Punteros por nodo | `nxt` | `nxt` + `prv` | `nxt` |
 | El último apunta a | `NULL` | `NULL` | `top` |
 | Función extra | — | `imprimirReversa` | `ultimo()` |
-| Caso especial | — | Actualizar `prv` en cada operación | Nodo solo se apunta a sí mismo |
+| Caso especial | — | Actualizar `prv` en cada operación | Nodo único se apunta a sí mismo |
 
 ---
 
-### El flujo de `push` (insertar al inicio) en las tres variantes
+### El flujo de `push` en las tres variantes
 
-**Simple** — dos líneas:
+**Simple** — dos asignaciones:
 ```c
-nuevo->nxt = listaActual->top;   // nuevo apunta a lo que era el tope
-listaActual->top = nuevo;        // el nuevo ES el tope
+nuevo->nxt = listaActual->top;   // el nuevo apunta a lo que era el tope
+listaActual->top = nuevo;        // el nuevo pasa a ser el tope
 ```
 
-**Doble** — lo mismo + actualizar `prv`:
+**Doble** — igual, más actualizar el enlace inverso:
 ```c
 nuevo->nxt = listaActual->top;
 if (listaActual->top != NULL)
@@ -372,47 +435,44 @@ if (listaActual->top != NULL)
 listaActual->top = nuevo;
 ```
 
-**Circular** — hay que re-cerrar el círculo:
+**Circular** — hay que mantener el círculo cerrado:
 ```c
-nodo fin = ultimo(listaActual);   // el que apuntaba al antiguo top
+nodo fin = ultimo(listaActual);   // nodo cuyo nxt apuntaba al antiguo top
 nuevo->nxt = listaActual->top;
 fin->nxt = nuevo;                 // el último ahora apunta al nuevo tope
 listaActual->top = nuevo;
 ```
 
-En la circular, `ultimo()` recorre hasta encontrar el nodo cuyo `nxt == top`. Por eso `size`, `imprimir` y todo lo que recorra usan `do-while` con condición `!= top` en vez de `!= NULL`.
+En la circular, `ultimo()` recorre hasta encontrar el nodo donde `nxt == top`. Por eso `size`, `imprimir` y cualquier recorrido usan `do-while` con condición `!= top`, no `!= NULL`.
 
 ---
 
 ### 📌 Ayuda_del_profesor.c — La pila para invertir orden (conversión a binario)
 
-Este es el ejemplo más limpio de **para qué sirve una pila**: cuando procesás datos en un orden y los necesitás en el orden inverso.
+Caso concreto de uso de una pila: cuando los datos se producen en un orden y se necesitan en el orden inverso.
 
-El problema: convertir un número entero a binario. `numero % 2` te da el bit **menos** significativo (el de la derecha), pero necesitás imprimir de izquierda a derecha.
+La división sucesiva por 2 genera los bits del **menos** significativo al **más** significativo, pero para imprimir un número binario se necesita el orden contrario. La pila resuelve esto sin recalcular:
 
 ```
-13 en binario = 1101
+13 en binario:
 
-Paso a paso:
-13 % 2 = 1  → push(1),  numero = 6
- 6 % 2 = 0  → push(0),  numero = 3
- 3 % 2 = 1  → push(1),  numero = 1
- 1 % 2 = 1  → push(1),  numero = 0  ← para
+13 % 2 = 1  → push(1),  13 → 6
+ 6 % 2 = 0  → push(0),   6 → 3
+ 3 % 2 = 1  → push(1),   3 → 1
+ 1 % 2 = 1  → push(1),   1 → 0  (fin)
 
-Pila (top → bottom): 1 | 1 | 0 | 1
+Pila (top → base): 1 | 1 | 0 | 1
 
 pop → 1
 pop → 1
 pop → 0
-pop → 1    imprime: 1 1 0 1  ✓
+pop → 1    Salida: 1 1 0 1  ✓
 ```
-
-El código es sorprendentemente corto:
 
 ```c
 while(numero != 0){
     bit = (short)(numero % 2);
-    numero = (numero - bit) / 2;   // equivale a numero / 2 en entero
+    numero = (numero - bit) / 2;
     push(bit, binario);
 }
 while(!isEmpty(binario)){
@@ -420,13 +480,13 @@ while(!isEmpty(binario)){
 }
 ```
 
-LIFO (Last In, First Out) = el último en entrar es el primero en salir = los bits quedan en el orden correcto. Esto es lo que hace una pila útil para cualquier problema donde necesitás revertir una secuencia.
+La propiedad LIFO (Last In, First Out) hace que el último bit calculado — el más significativo — sea el primero en salir. Este mismo principio es aplicable a cualquier problema de reversión de secuencias.
 
 ---
 
 ### 📌 Ejercio_Lista_*.c — Los ejercicios de clase
 
-Los tres archivos de ejercicio tienen exactamente el mismo `main`:
+Los tres archivos de ejercicio comparten el mismo `main`:
 
 ```c
 push(3, l);         // l: 3
@@ -437,16 +497,16 @@ insert(7, 1, l);    // l: 5 → 7 → 3 → 9  (pos 1 = después del tope)
 size(l)     // → 4
 pop(l)      // → 5,  l: 7 → 3 → 9
 extract(l)  // → 7,  l: 3 → 9
-// bucle extract: saca 3, saca 9
+// bucle extract: 3, luego 9
 ```
 
-La diferencia entre los tres no está en el `main` sino en **cómo** `push`, `pop` e `insert` mantienen los enlaces internamente. La interfaz es idéntica.
+La diferencia entre las tres implementaciones no está en la interfaz sino en cómo `push`, `pop` e `insert` mantienen los enlaces internamente.
 
 ---
 
 ### 📌 Ejercio_10_09_2026.c — Pila con array
 
-¿Recordás `push` y `pop` de las listas? Este ejercicio implementa **una pila sin structs ni malloc** — solo un array + un índice `tope`:
+Una pila puede implementarse sin structs ni memoria dinámica, usando un array y un índice `tope`:
 
 ```c
 char pila[100];
@@ -457,53 +517,53 @@ int tope = -1;
 // peek:  pila[tope]
 ```
 
-Es la misma lógica que `listaActual->top` de las listas, pero con array estático. Funciona cuando sabés de antemano el tamaño máximo.
+La lógica es idéntica a la de las listas enlazadas, pero con array estático. Es válida cuando el tamaño máximo se conoce de antemano.
 
-El ejercicio usa esto para convertir una expresión matemática de notación **infija** (`3 + 4 * 2`) a **posfija** (`3 4 2 * +`) — el algoritmo Shunting Yard. La pila guarda operadores pendientes y los saca según su precedencia.
+El ejercicio implementa el algoritmo **Shunting Yard**: convierte una expresión infija (`3 + 4 * 2`) a notación posfija (`3 4 2 * +`), donde los operadores van después de sus operandos. La pila almacena los operadores pendientes y los vuelca según su precedencia.
 
-Después evalúa la expresión posfija con una segunda pila (de `double`):
+Para evaluar la expresión posfija, una segunda pila (de `double`) almacena los operandos:
 
 ```c
-// número → meter a la pila
-// operador → sacar dos, operar, meter resultado
+// token es número → meterlo a la pila
+// token es operador → sacar dos operandos, operar, meter el resultado
 double b = nums[topeNum--];
 double a = nums[topeNum--];
 nums[++topeNum] = a + b;   // o -, *, /, pow()
 ```
 
-Al final, el único elemento en la pila es el resultado de toda la expresión.
+Al terminar, el único elemento en la pila es el resultado de la expresión completa.
 
 ---
 
-### 📌 Ej1.c (versión lista) — Inserción ordenada
+### 📌 Ej1(1).c — Inserción ordenada en lista enlazada
 
-¿Recordás `insert(valor, pos, l)` que insertaba en una posición fija? Acá el criterio no es posición sino **orden**:
+**Enunciado** (incluido en el archivo): mantener una lista enlazada siempre ordenada de menor a mayor. Los números en punto flotante se leen hasta encontrar `#`.
+
+La función `orderedInsertion` avanza hasta encontrar el punto de inserción correcto:
 
 ```c
 void orderedInsertion(float numero) {
-    // caminar hasta que el siguiente sea mayor que numero
+    // ...
     while (actual->siguiente != NULL &&
            actual->siguiente->dato < numero) {
-        actual = actual->siguiente;
+        actual = actual->siguiente;    // avanzar mientras el siguiente sea menor
     }
     nuevo->siguiente = actual->siguiente;
     actual->siguiente = nuevo;
 }
 ```
 
-Misma mecánica de inserción en medio de la lista. La diferencia es la condición del `while`.
+Misma mecánica de inserción en medio de una lista. La diferencia respecto a `insert(valor, pos, l)` es que el criterio de parada es un valor relativo, no una posición absoluta.
 
 ---
 
 ## 9. Ejercicios Python — algoritmos
 
-Los ejercicios de diagnóstico y práctica en Python. Los conceptos son los mismos que en C pero Python da más herramientas.
-
 ---
 
-### 📌 Ej2.py — Frecuencia de caracteres (recorrido único)
+### 📌 Ej2.py — Frecuencia de caracteres (un solo recorrido)
 
-**Enunciado:** frecuencia de cada carácter en orden de aparición. Solo un recorrido permitido.
+**Enunciado:** dada una cadena, mostrar la frecuencia de cada carácter en orden de aparición. Se permite recorrer la cadena una sola vez.
 
 ```python
 for letra in cadena:
@@ -515,78 +575,79 @@ for letra in cadena:
         veces.append(1)
 ```
 
-Dos listas paralelas en vez de un dict — el índice `i` las conecta. En C hiciste algo equivalente con `frecuencias[char]++`. La restricción "un solo recorrido" fuerza a no usar `cadena.count(c)` (que recorrería todo por cada letra).
+Dos listas paralelas (`letras` y `veces`) en lugar de un diccionario. El índice `i` las mantiene sincronizadas. La restricción de un solo recorrido impide usar `cadena.count(c)` (que recorrería la cadena por cada carácter único).
 
 ---
 
-### 📌 Ej1.py — Sublistas y subsecuencias sin repetidos
+### 📌 Ej1.py — Sublistas y subsecuencias sin caracteres repetidos
 
-**Enunciado:** dada una cadena, listar todas las sublistas (consecutivas) y subsecuencias (no necesariamente consecutivas) sin caracteres repetidos.
+**Enunciado:** dada una cadena, listar todas las sublistas (subcadenas consecutivas) y subsecuencias (no necesariamente consecutivas) formadas por caracteres sin repetición.
 
-**Sublistas** — doble for con slicing:
+**Sublistas** — doble bucle con slicing:
 ```python
 for i in range(len(texto)):
     for j in range(i + 1, len(texto) + 1):
         sub = texto[i:j]
-        if len(set(sub)) == len(sub):   # set elimina duplicados → si el tamaño no cambia, no había repetidos
+        if len(set(sub)) == len(sub):   # set elimina duplicados; si el tamaño no cambia, no había repetidos
             sublistas.add(sub)
 ```
 
 **Subsecuencias** — recursivo:
 ```python
 def calcular_subsecuencias(texto):
-    if not texto: return {""}          # caso base
+    if not texto: return {""}              # caso base
     primer_char = texto[0]
-    resto = calcular_subsecuencias(texto[1:])   # llamada recursiva
+    resto = calcular_subsecuencias(texto[1:])
     resultado = set()
     for sub in resto:
-        resultado.add(sub)             # sin el primer char
+        resultado.add(sub)                 # sin el primer carácter
         nueva = primer_char + sub
-        if len(set(nueva)) == len(nueva):
-            resultado.add(nueva)       # con el primer char, si no repite
+        if len(set(nueva)) == len(nueva):  # incluir solo si no repite
+            resultado.add(nueva)
     return resultado
 ```
 
-La recursión piensa: "las subsecuencias de `texto` son las subsecuencias del resto, más cada una de ellas con `primer_char` al inicio (si no repite)". Divide y vencerás.
+La recursión plantea: "las subsecuencias de `texto` son las del resto, más cada una de ellas con `primer_char` al inicio (si no introduce repetición)". Es un esquema de inclusión/exclusión.
 
 ---
 
 ### 📌 Diag_1.py — Flecha más larga en una cadena
 
-**Enunciado:** dada una cadena con flechas tipo `<---` o `===>`, encontrar la de mayor longitud.
+**Enunciado:** dada una cadena con flechas tipo `<---` o `====>`, encontrar la de mayor longitud.
+
+Para cada `<`, el cuerpo crece hacia la derecha. Para cada `>`, crece hacia la izquierda:
 
 ```python
-for i in range(len(cadena)):
-    if cadena[i] == '<':              # punta izquierda → cuerpo va hacia la derecha
-        j = i + 1
-        while j < len(cadena) and cadena[j] == '-':   # contar guiones
-            longitud_actual += 1; j += 1
-    elif cadena[i] == '>':            # punta derecha → cuerpo va hacia la izquierda
-        j = i - 1
-        while j >= 0 and cadena[j] == '-':
-            longitud_actual += 1; j -= 1
+if cadena[i] == '<':
+    j = i + 1
+    while j < len(cadena) and cadena[j] == '-':
+        longitud_actual += 1; j += 1
+elif cadena[i] == '>':
+    j = i - 1
+    while j >= 0 and cadena[j] == '-':
+        longitud_actual += 1; j -= 1
 ```
 
-La punta (`<` o `>`) tiene longitud 1 y el cuerpo (`-` o `=`) se cuenta en la dirección que apunta. Dos punteros: `i` fijo en la punta, `j` moviéndose a lo largo del cuerpo.
+Técnica de dos punteros: `i` fijo en la punta, `j` avanzando a lo largo del cuerpo.
 
 ---
 
 ### 📌 Diag_2.py — Palíndromo por suma con reverso
 
-**Enunciado:** dado un número, sumarle repetidamente su reverso hasta obtener un palíndromo. Máximo 100 intentos; si no se logra, imprimir "imposible".
+**Enunciado:** dado un número, sumarlo con su reverso repetidamente hasta obtener un palíndromo. Máximo 100 intentos; si no se logra, imprimir `"imposible"`.
 
 ```python
 while intentos < 100:
     num_str = str(numero_actual)
-    num_invertido = int(num_str[::-1])    # [::-1] = slice invertido = reverso del string
+    num_invertido = int(num_str[::-1])    # [::-1] invierte la secuencia
     suma = numero_actual + num_invertido
     intentos += 1
-    if str(suma) == str(suma)[::-1]:      # ¿es palíndromo?
+    if str(suma) == str(suma)[::-1]:      # comprobar palíndromo
         print(suma); break
     numero_actual = suma
 ```
 
-`[::-1]` es el truco de Python para invertir una secuencia. Equivalente en C requeriría un bucle manual con dos índices desde los extremos hacia el centro.
+El slice `[::-1]` es la forma idiomática de invertir una secuencia en Python. El equivalente en C requiere un bucle con dos índices avanzando desde los extremos hacia el centro.
 
 ---
 
@@ -597,62 +658,56 @@ while intentos < 100:
 ```python
 def es_primo(num):
     if num < 2: return False
-    for i in range(2, int(num**0.5) + 1):   # basta con llegar a √num
+    for i in range(2, int(num**0.5) + 1):   # basta verificar hasta √num
         if num % i == 0: return False
     return True
 ```
 
-Tres loops anidados, con la restricción `p1 ≤ p2 ≤ p3` para no repetir combinaciones:
+Tres bucles anidados. La restricción `p2` empieza desde `p1` (no desde 2) y `p3` se calcula directamente:
 
 ```python
-p1 = 2
-while p1 <= p:
-    if es_primo(p1):
-        p2 = p1                          # p2 empieza desde p1, no desde 2
-        while p1 + p2 <= p:
-            if es_primo(p2):
-                p3 = p - p1 - p2
-                if p3 >= p2 and es_primo(p3):   # p3 ≥ p2 para mantener el orden
-                    print(p1, p2, p3); encontrado = True
-            p2 += 1
-    p1 += 1
+p3 = p - p1 - p2      # si p1 y p2 son fijos, p3 está determinado
+if p3 >= p2 and es_primo(p3):
+    print(p1, p2, p3)
 ```
 
-El `p3 = p - p1 - p2` calcula directamente el tercer primo necesario en vez de iterar — si ya sabés dos de los tres, el tercero está determinado.
+Calcular `p3` en lugar de iterarlo sobre él elimina un tercer bucle completo.
 
 ---
 
-## Resumen: qué concepto usa cada ejercicio
+## Resumen: concepto central por ejercicio
 
 | Archivo | Concepto central |
 |---|---|
 | `Ej1.c` | Array, valor-como-índice |
-| `Ej2.c` | Doble for, O(n²) |
+| `Ej2.c` | Doble bucle, O(n²) |
 | `Ej3.c` | Selection sort, swap con variable temporal |
-| `Ej4.c` | char→int (ASCII), buscar máximo repetidamente |
-| `Ej5.c` | Array 2D de strings, comparación char por char |
-| `Ej.c` | Recorrido de string con `'\0'`, contador de balance |
-| `Ej1(1).c` | Lista enlazada + inserción ordenada |
-| `Ayuda_del_profesor.c` | Pila LIFO para revertir orden (binario) |
-| `Ejercio_10_09_2026.c` | Pila con array, precedencia, Shunting Yard |
-| `Ejercio_Lista_*.c` | Lista enlazada: push/pop/enqueue/insert |
+| `Ej4.c` | `char` → `int` (ASCII), búsqueda del máximo por iteraciones |
+| `Ej5.c` | Array 2D de cadenas, comparación carácter por carácter |
+| `Ej.c` | Recorrido de cadena hasta `'\0'`, contador de balance |
+| `Ej1(1).c` | Lista enlazada + inserción por criterio de orden |
+| `Ayuda_del_profesor.c` | Pila LIFO para inversión de secuencia (binario) |
+| `Ejercio_10_09_2026.c` | Pila con array, precedencia de operadores, Shunting Yard |
+| `Ejercio_Lista_*.c` | Lista enlazada: push / pop / enqueue / insert |
 | `Ej2.py` | Listas paralelas como estructura de frecuencia |
-| `Ej1.py` | Slicing, recursión, set para unicidad |
-| `Diag_1.py` | Dos punteros, parseo de patrones en string |
-| `Diag_2.py` | Reverso con `[::-1]`, palíndromo numérico |
-| `Diag_3.py` | Triple loop, criba de primos, p3 calculado directamente |
+| `Ej1.py` | Slicing, recursión con inclusión/exclusión, `set` para unicidad |
+| `Diag_1.py` | Dos punteros, parseo de patrones en cadena |
+| `Diag_2.py` | Inversión con `[::-1]`, palíndromo numérico |
+| `Diag_3.py` | Triple bucle, criba de primos, tercer valor calculado |
 
 ---
 
-## Compilar los archivos de este repo
+## Compilación rápida
 
 ```bash
-# Cualquier .c simple:
-gcc Ej1.c -o ej1 && ./ej1
+# Archivo simple:
+gcc Ej1.c -o ej1.exe && .\ej1.exe
 
-# Si usa <math.h> (pow, etc.) — siempre con -lm al final:
-gcc Ejercio_10_09_2026.c -lm -o calc && ./calc
+# Con math.h:
+gcc Ejercio_10_09_2026.c -lm -o calc.exe && .\calc.exe
 
-# Las listas (desde dentro de la carpeta):
-gcc main_simple.c lista_simple.c -o test && ./test
+# Librerías (desde la carpeta correspondiente):
+gcc main_simple.c lista_simple.c -o test.exe && .\test.exe
+
+# VS Code: Ctrl+Alt+N  (con la configuración de Code Runner del §0)
 ```
